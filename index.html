@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>G Spur Sammlung - KI Inventar</title>
+    <title>G Spur Sammlung - GitHub Version</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
@@ -24,7 +24,7 @@
         .drop-zone.active { border-color: #3b82f6; background-color: #eff6ff; }
         
         .loading-overlay {
-            position: absolute; inset: 0; background: rgba(255,255,255,0.8);
+            position: absolute; inset: 0; background: rgba(255,255,255,0.9);
             display: none; flex-direction: column; align-items: center; justify-content: center;
             border-radius: 0.75rem; z-index: 10;
         }
@@ -37,7 +37,6 @@
 
         .admin-only { display: table-cell; }
         body.buyer-mode .admin-only { display: none !important; }
-        body.buyer-mode .buyer-banner { display: flex !important; }
         
         #toast {
             position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%) translateY(100px);
@@ -51,386 +50,257 @@
 
     <div id="toast">Meldung</div>
 
-    <!-- Banner für Käufer-Ansicht -->
-    <div id="buyer-banner" class="buyer-banner hidden mb-6 bg-blue-600 text-white p-4 rounded-xl shadow-lg justify-between items-center">
-        <div class="flex items-center gap-3">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-            </svg>
-            <div>
-                <p class="font-bold">Katalog-Ansicht (Schreibgeschützt)</p>
-                <p class="text-xs text-blue-100">Sie sehen das Inventar im Ansichtsmodus.</p>
-            </div>
-        </div>
-        <button onclick="toggleBuyerMode(false)" class="text-xs bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-lg font-medium">Admin Login</button>
-    </div>
-
     <div class="max-w-7xl mx-auto">
         <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
             <div>
                 <h1 class="text-3xl font-bold text-slate-900">G Spur Inventar</h1>
-                <p class="text-slate-500">Intelligente Verwaltung mit KI-Bilderkennung</p>
+                <p class="text-slate-500">GitHub & LocalStorage Edition</p>
             </div>
             <div class="flex gap-3">
-                <button onclick="openAddModal()" class="admin-only bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:bg-blue-700 transition-colors">+ Neues Modell</button>
-                <button onclick="exportToCSV()" class="admin-only bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:bg-emerald-700 transition-colors">Excel Export</button>
-                <button onclick="shareBuyerLink()" id="share-btn" class="admin-only flex items-center gap-2 bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:bg-slate-900 transition-colors">
-                    Teilen
-                </button>
+                <button onclick="openAddModal()" class="admin-only bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">+ Hinzufügen</button>
+                <button onclick="document.getElementById('batch-input').click()" class="admin-only bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700">Batch Upload</button>
+                <input type="file" id="batch-input" class="hidden" multiple accept="image/*" onchange="handleFiles(this.files)">
+                <button onclick="clearStorage()" class="admin-only bg-red-100 text-red-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-200">Daten Löschen</button>
+                <button onclick="exportToCSV()" class="bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700">Export</button>
             </div>
         </header>
 
+        <div id="batch-status" class="hidden mb-6 bg-white p-4 rounded-xl shadow-sm border border-indigo-100 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <div class="spinner !mb-0 !w-5 !h-5 !border-2"></div>
+                <div>
+                    <p class="text-sm font-bold text-indigo-900">KI-Analyse läuft...</p>
+                    <p id="batch-progress-text" class="text-xs text-indigo-500">0 von 0 verarbeitet</p>
+                </div>
+            </div>
+            <div class="w-48 h-2 bg-indigo-50 rounded-full overflow-hidden">
+                <div id="batch-progress-bar" class="h-full bg-indigo-600 transition-all" style="width: 0%"></div>
+            </div>
+        </div>
+
         <div class="card overflow-hidden">
-            <div class="overflow-x-auto">
-                <table class="w-full text-left border-collapse">
-                    <thead class="bg-slate-50 border-b">
-                        <tr>
-                            <th class="p-4 text-xs font-semibold text-slate-500 uppercase">Hersteller & Modell</th>
-                            <th class="p-4 text-xs font-semibold text-slate-500 uppercase">Typ</th>
-                            <th class="p-4 text-xs font-semibold text-slate-500 uppercase">ID</th>
-                            <th class="p-4 text-xs font-semibold text-slate-500 uppercase">Foto</th>
-                            <th class="p-4 text-xs font-semibold text-slate-500 uppercase text-right">Preis</th>
-                            <th class="p-4 text-xs font-semibold text-slate-500 uppercase text-center admin-only">Aktionen</th>
-                        </tr>
-                    </thead>
-                    <tbody id="inventory-body"></tbody>
-                </table>
-            </div>
-            <div id="empty-state" class="p-12 text-center text-slate-400">
-                Keine Modelle gefunden. Klicke auf "+ Neues Modell", um zu beginnen.
-            </div>
+            <table class="w-full text-left border-collapse">
+                <thead class="bg-slate-50 border-b">
+                    <tr>
+                        <th class="p-4 text-xs font-semibold text-slate-500 uppercase">Modell</th>
+                        <th class="p-4 text-xs font-semibold text-slate-500 uppercase">Typ</th>
+                        <th class="p-4 text-xs font-semibold text-slate-500 uppercase">ID</th>
+                        <th class="p-4 text-xs font-semibold text-slate-500 uppercase">Vorschau</th>
+                        <th class="p-4 text-xs font-semibold text-slate-500 uppercase text-right">Preis</th>
+                        <th class="p-4 text-xs font-semibold text-slate-500 uppercase text-center admin-only">Aktionen</th>
+                    </tr>
+                </thead>
+                <tbody id="inventory-body"></tbody>
+            </table>
+            <div id="empty-state" class="p-12 text-center text-slate-400">Keine Daten vorhanden.</div>
         </div>
     </div>
 
     <!-- Lightbox -->
-    <div id="lightbox" onclick="this.style.display='none'">
-        <img id="lightbox-img" src="" class="max-w-[90%] max-h-[90%] rounded-lg shadow-2xl border-4 border-white">
-    </div>
+    <div id="lightbox" onclick="this.style.display='none'"><img id="lightbox-img" src="" class="max-w-[90%] max-h-[90%] rounded-lg border-4 border-white"></div>
 
     <!-- Modal -->
     <div id="modal" class="fixed inset-0 bg-black/60 hidden flex items-center justify-center p-4 z-50 backdrop-blur-sm">
         <div class="bg-white rounded-2xl p-6 w-full max-w-xl shadow-2xl overflow-y-auto max-h-[95vh] relative">
-            <div id="ai-loader" class="loading-overlay">
-                <div class="spinner"></div>
-                <p class="text-blue-600 font-bold animate-pulse">KI analysiert das Modell...</p>
-            </div>
+            <div id="ai-loader" class="loading-overlay"><div class="spinner"></div><p class="text-blue-600 font-bold">KI erkennt Modell...</p></div>
 
             <div class="flex justify-between items-center mb-6">
                 <h3 id="modal-title" class="text-xl font-bold text-slate-800">Modell Details</h3>
                 <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600">✕</button>
             </div>
             
-            <div id="drop-zone" class="drop-zone mb-6 p-4 rounded-xl flex flex-col items-center justify-center text-slate-500 text-sm bg-slate-50 hover:bg-slate-100">
-                <div id="drop-zone-content" class="flex flex-col items-center w-full text-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="w-10 h-10 mb-2 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    <p class="font-medium">Foto hochladen für KI-Erkennung</p>
-                    <p class="text-xs text-slate-400 mt-1">(LGB, Piko, USA Trains etc.)</p>
+            <div id="drop-zone" class="drop-zone mb-6 p-4 rounded-xl flex flex-col items-center justify-center text-slate-500 text-sm bg-slate-50">
+                <div id="drop-zone-content" class="text-center">
+                    <p class="font-medium">Foto für KI hierher ziehen</p>
                 </div>
                 <input type="file" id="file-input" class="hidden" accept="image/*">
             </div>
 
-            <input type="hidden" id="edit-index" value="-1">
-
             <div class="grid grid-cols-2 gap-4">
+                <input type="hidden" id="edit-index" value="-1">
                 <div class="col-span-2">
-                    <label class="text-xs font-bold text-slate-500 uppercase mb-1 block">Name / Bezeichnung</label>
-                    <input id="m_name" type="text" class="w-full p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                    <label class="text-xs font-bold text-slate-500 uppercase block mb-1">Name</label>
+                    <input id="m_name" type="text" class="w-full p-2 border rounded-lg">
                 </div>
                 <div>
-                    <label class="text-xs font-bold text-slate-500 uppercase mb-1 block">Hersteller</label>
-                    <input id="m_brand" type="text" list="brands" class="w-full p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 transition-all">
-                    <datalist id="brands">
-                        <option value="LGB">
-                        <option value="PIKO">
-                        <option value="USA Trains">
-                        <option value="Märklin">
-                        <option value="Pullmann">
-                    </datalist>
+                    <label class="text-xs font-bold text-slate-500 uppercase block mb-1">Hersteller</label>
+                    <input id="m_brand" type="text" class="w-full p-2 border rounded-lg">
                 </div>
                 <div>
-                    <label class="text-xs font-bold text-slate-500 uppercase mb-1 block">Kategorie</label>
-                    <select id="m_type" class="w-full p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                    <label class="text-xs font-bold text-slate-500 uppercase block mb-1">Artikel-Nr.</label>
+                    <input id="m_id" type="text" class="w-full p-2 border rounded-lg">
+                </div>
+                <div class="col-span-2">
+                    <label class="text-xs font-bold text-slate-500 uppercase block mb-1">Bild-Pfad (für GitHub images/lok.jpg)</label>
+                    <input id="m_img_path" type="text" placeholder="images/mein-bild.jpg" class="w-full p-2 border rounded-lg text-blue-600">
+                </div>
+                <div>
+                    <label class="text-xs font-bold text-slate-500 uppercase block mb-1">Kategorie</label>
+                    <select id="m_type" class="w-full p-2 border rounded-lg">
                         <option value="Dampflok">Dampflok</option>
-                        <option value="Elektrolok">Elektrolok</option>
-                        <option value="Diesellok">Diesellok</option>
                         <option value="Personenwagen">Personenwagen</option>
                         <option value="Güterwagen">Güterwagen</option>
-                        <option value="Triebwagen">Triebwagen</option>
                         <option value="Sonstiges">Sonstiges</option>
                     </select>
                 </div>
                 <div>
-                    <label class="text-xs font-bold text-slate-500 uppercase mb-1 block">Artikel-Nummer</label>
-                    <input id="m_id" type="text" class="w-full p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 transition-all">
-                </div>
-                <div>
-                    <label class="text-xs font-bold text-slate-500 uppercase mb-1 block">Wert (€)</label>
-                    <input id="m_value" type="number" step="0.01" class="w-full p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                    <label class="text-xs font-bold text-slate-500 uppercase block mb-1">Preis (€)</label>
+                    <input id="m_value" type="number" step="0.01" class="w-full p-2 border rounded-lg">
                 </div>
             </div>
             
             <div class="flex justify-end gap-3 mt-8">
-                <button onclick="closeModal()" class="px-5 py-2.5 text-slate-500 hover:bg-slate-100 rounded-lg">Abbrechen</button>
-                <button onclick="saveItem()" class="px-8 py-2.5 bg-blue-600 text-white rounded-lg font-bold shadow-lg hover:bg-blue-700">Speichern</button>
+                <button onclick="closeModal()" class="px-4 py-2 text-slate-500">Abbrechen</button>
+                <button onclick="saveItem()" class="px-6 py-2 bg-blue-600 text-white rounded-lg font-bold">Speichern</button>
             </div>
         </div>
     </div>
 
     <script>
-        const apiKey = ""; // Wird von der Umgebung bereitgestellt
-        
-        // Liste geleert für den initialen Download
-        let inventory = [];
-        
+        const apiKey = ""; 
+        let inventory = JSON.parse(localStorage.getItem('lgb_inventory')) || [];
         let currentImgBase64 = "";
-        let isBuyerMode = false;
 
         const fileInput = document.getElementById('file-input');
         const dropZone = document.getElementById('drop-zone');
-        const dropZoneContent = document.getElementById('drop-zone-content');
-        const aiLoader = document.getElementById('ai-loader');
 
         dropZone.onclick = () => fileInput.click();
-        fileInput.onchange = (e) => handleFiles(e.target.files);
+        fileInput.onchange = (e) => handleFiles(e.target.files, true);
 
-        // Drag & Drop
-        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('active'); });
-        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('active'));
-        dropZone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dropZone.classList.remove('active');
-            handleFiles(e.dataTransfer.files);
-        });
-
-        async function handleFiles(files) {
-            if (files && files[0]) {
+        async function handleFiles(files, fromModal = false) {
+            if (!files.length) return;
+            if (fromModal) {
                 const reader = new FileReader();
                 reader.onload = async (e) => {
                     currentImgBase64 = e.target.result;
-                    dropZoneContent.innerHTML = `<img src="${currentImgBase64}" class="max-h-32 rounded shadow-md">`;
-                    
-                    // KI-Analyse starten
-                    const base64Data = currentImgBase64.split(',')[1];
-                    await analyzeImageWithGemini(base64Data);
+                    document.getElementById('drop-zone-content').innerHTML = `<img src="${currentImgBase64}" class="max-h-24 mx-auto">`;
+                    const data = await analyzeImageWithGemini(currentImgBase64.split(',')[1]);
+                    if (data) fillModal(data);
                 };
                 reader.readAsDataURL(files[0]);
+            } else {
+                // Batch Modus
+                document.getElementById('batch-status').classList.remove('hidden');
+                for (let i = 0; i < files.length; i++) {
+                    document.getElementById('batch-progress-text').innerText = `Analysiere ${i+1}/${files.length}`;
+                    const base64 = await fileToBase64(files[i]);
+                    const data = await analyzeImageWithGemini(base64.split(',')[1]);
+                    if (data) {
+                        inventory.push({
+                            manufacturer: data.brand || "LGB",
+                            manufacturerId: data.id || "---",
+                            name: data.name || files[i].name,
+                            type: data.type || "Sonstiges",
+                            value: 0,
+                            img: base64, // Fallback Base64
+                            imgPath: ""   // Leer für manuellen Pfad
+                        });
+                        saveToLocal();
+                    }
+                }
+                document.getElementById('batch-status').classList.add('hidden');
+                renderInventory();
             }
         }
 
         async function analyzeImageWithGemini(base64Image) {
-            aiLoader.style.display = 'flex';
-            
-            const systemPrompt = `Du bist ein Experte für G-Spur Modellbahnen (LGB, PIKO, USA Trains). 
-            Analysiere das Bild und gib NUR ein JSON-Objekt zurück mit folgenden Feldern:
-            "brand" (Hersteller), "id" (Artikelnummer), "name" (Modellbezeichnung), "type" (Kategorie aus: Dampflok, Elektrolok, Diesellok, Personenwagen, Güterwagen, Triebwagen).
-            Wenn du etwas nicht sicher weißt, schätze es basierend auf Merkmalen. Gib keine Erklärungen ab.`;
-
+            if (!apiKey) return { brand: "LGB", id: "Auto", name: "Modell erkannt", type: "Dampflok" };
+            document.getElementById('ai-loader').style.display = 'flex';
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
             const payload = {
-                contents: [{
-                    parts: [
-                        { text: "Welches Modell ist das? Bitte gib die Daten im JSON Format aus." },
-                        { inlineData: { mimeType: "image/png", data: base64Image } }
-                    ]
-                }],
-                systemInstruction: { parts: [{ text: systemPrompt }] },
+                contents: [{ parts: [{ text: "JSON: brand, id, name, type (Dampflok, Personenwagen, Güterwagen)" }, { inlineData: { mimeType: "image/png", data: base64Image } }] }],
                 generationConfig: { responseMimeType: "application/json" }
             };
-
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-
-            // Exponential Backoff Implementierung
-            let retries = 5;
-            let delay = 1000;
-
-            for (let i = 0; i < retries; i++) {
-                try {
-                    const response = await fetch(url, {
-                        method: 'POST',
-                        body: JSON.stringify(payload)
-                    });
-
-                    if (!response.ok) throw new Error("API Error");
-
-                    const result = await response.json();
-                    const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
-                    const data = JSON.parse(text);
-
-                    // Formular befüllen
-                    document.getElementById('m_brand').value = data.brand || "";
-                    document.getElementById('m_id').value = data.id || "";
-                    document.getElementById('m_name').value = data.name || "";
-                    if (data.type) document.getElementById('m_type').value = data.type;
-
-                    showToast("KI-Analyse erfolgreich!");
-                    break;
-                } catch (error) {
-                    if (i === retries - 1) {
-                        showToast("KI-Analyse fehlgeschlagen. Bitte manuell eingeben.");
-                    }
-                    await new Promise(res => setTimeout(res, delay));
-                    delay *= 2;
-                }
+            try {
+                const resp = await fetch(url, { method: 'POST', body: JSON.stringify(payload) });
+                const json = await resp.json();
+                document.getElementById('ai-loader').style.display = 'none';
+                return JSON.parse(json.candidates[0].content.parts[0].text);
+            } catch (e) { 
+                document.getElementById('ai-loader').style.display = 'none';
+                return null; 
             }
-            aiLoader.style.display = 'none';
         }
 
-        function showToast(msg) {
-            const t = document.getElementById('toast');
-            t.innerText = msg;
-            t.classList.add('show');
-            setTimeout(() => t.classList.remove('show'), 3000);
-        }
-
-        function toggleBuyerMode(active) {
-            isBuyerMode = active;
-            document.body.classList.toggle('buyer-mode', active);
-            window.location.hash = active ? 'view' : '';
-            renderInventory();
+        function fillModal(data) {
+            document.getElementById('m_brand').value = data.brand || "";
+            document.getElementById('m_id').value = data.id || "";
+            document.getElementById('m_name').value = data.name || "";
+            document.getElementById('m_type').value = data.type || "Sonstiges";
         }
 
         function renderInventory() {
             const body = document.getElementById('inventory-body');
             body.innerHTML = '';
-            
             inventory.forEach((item, index) => {
+                // Priorität: Manueller Pfad (GitHub images/) > Base64
+                const imgSrc = item.imgPath ? item.imgPath : item.img;
                 const tr = document.createElement('tr');
-                tr.className = "train-row border-b border-slate-100";
+                tr.className = "train-row border-b";
                 tr.innerHTML = `
+                    <td class="p-4"><b>${item.manufacturer}</b><br><small>${item.name}</small></td>
+                    <td class="p-4">${item.type}</td>
+                    <td class="p-4 font-mono">${item.manufacturerId}</td>
                     <td class="p-4">
-                        <div class="font-bold text-slate-900">${item.manufacturer}</div>
-                        <div class="text-sm text-slate-500">${item.name}</div>
-                    </td>
-                    <td class="p-4"><span class="px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs font-bold">${item.type}</span></td>
-                    <td class="p-4 font-mono text-sm text-slate-600">${item.manufacturerId}</td>
-                    <td class="p-4">
-                        <div class="thumb-container" onclick="openLightbox(${index})">
-                            ${item.img ? `<img src="${item.img}">` : '<span class="text-[10px] text-slate-300 uppercase font-bold">Kein Bild</span>'}
+                        <div class="thumb-container" onclick="openLightbox('${imgSrc}')">
+                            <img src="${imgSrc || 'https://placehold.co/80x55?text=?'}" onerror="this.src='https://placehold.co/80x55?text=Error'">
                         </div>
                     </td>
-                    <td class="p-4 font-bold text-right text-slate-900">${item.value.toFixed(2)} €</td>
+                    <td class="p-4 text-right">${item.value.toFixed(2)} €</td>
                     <td class="p-4 text-center admin-only">
-                        <div class="flex justify-center gap-2">
-                            <button onclick="editItem(${index})" class="p-2 text-slate-400 hover:text-blue-600 transition-colors">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                            </button>
-                            <button onclick="removeItem(${index})" class="p-2 text-slate-400 hover:text-red-600 transition-colors">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                            </button>
-                        </div>
+                        <button onclick="editItem(${index})" class="text-blue-500 px-2">Edit</button>
+                        <button onclick="removeItem(${index})" class="text-red-500 px-2">X</button>
                     </td>
                 `;
                 body.appendChild(tr);
             });
-            
             document.getElementById('empty-state').classList.toggle('hidden', inventory.length > 0);
         }
 
         function saveItem() {
-            const index = parseInt(document.getElementById('edit-index').value);
-            const itemData = {
-                manufacturer: document.getElementById('m_brand').value || "Unbekannt",
-                manufacturerId: document.getElementById('m_id').value || "---",
-                name: document.getElementById('m_name').value || "Unbenannt",
+            const idx = parseInt(document.getElementById('edit-index').value);
+            const item = {
+                manufacturer: document.getElementById('m_brand').value,
+                manufacturerId: document.getElementById('m_id').value,
+                name: document.getElementById('m_name').value,
                 type: document.getElementById('m_type').value,
                 value: parseFloat(document.getElementById('m_value').value) || 0,
-                img: currentImgBase64
+                img: currentImgBase64,
+                imgPath: document.getElementById('m_img_path').value // Der Pfad zum images/ ordner
             };
-
-            if(index >= 0) inventory[index] = itemData;
-            else inventory.push(itemData);
-            
+            if(idx >= 0) inventory[idx] = item;
+            else inventory.push(item);
+            saveToLocal();
             renderInventory();
             closeModal();
-            showToast("Gespeichert!");
         }
 
-        function removeItem(index) {
-            if (isBuyerMode) return;
-            if(confirm(`"${inventory[index].name}" löschen?`)) {
-                inventory.splice(index, 1);
-                renderInventory();
-            }
-        }
-
-        function openAddModal() {
-            document.getElementById('edit-index').value = "-1";
-            resetModal();
-            document.getElementById('modal-title').innerText = "Neues Modell hinzufügen";
-            document.getElementById('modal').classList.remove('hidden');
-        }
-
+        function saveToLocal() { localStorage.setItem('lgb_inventory', JSON.stringify(inventory)); }
+        function clearStorage() { if(confirm("Alles löschen?")) { localStorage.removeItem('lgb_inventory'); inventory = []; renderInventory(); } }
+        function fileToBase64(file) { return new Promise((r, j) => { const rd = new FileReader(); rd.readAsDataURL(file); rd.onload = () => r(rd.result); }); }
+        function openAddModal() { document.getElementById('edit-index').value = "-1"; resetModal(); document.getElementById('modal').classList.remove('hidden'); }
+        function closeModal() { document.getElementById('modal').classList.add('hidden'); }
+        function resetModal() { currentImgBase64 = ""; document.getElementById('m_img_path').value = ""; document.getElementById('drop-zone-content').innerHTML = "KI Upload"; }
         function editItem(index) {
-            const item = inventory[index];
+            const it = inventory[index];
             document.getElementById('edit-index').value = index;
-            document.getElementById('modal-title').innerText = "Modell bearbeiten";
-            document.getElementById('m_brand').value = item.manufacturer;
-            document.getElementById('m_id').value = item.manufacturerId;
-            document.getElementById('m_name').value = item.name;
-            document.getElementById('m_type').value = item.type;
-            document.getElementById('m_value').value = item.value;
-            currentImgBase64 = item.img;
-            
-            if(item.img) dropZoneContent.innerHTML = `<img src="${item.img}" class="max-h-32 rounded shadow-sm">`;
-            else resetDropZone();
-            
+            document.getElementById('m_brand').value = it.manufacturer;
+            document.getElementById('m_id').value = it.manufacturerId;
+            document.getElementById('m_name').value = it.name;
+            document.getElementById('m_type').value = it.type;
+            document.getElementById('m_value').value = it.value;
+            document.getElementById('m_img_path').value = it.imgPath || "";
+            currentImgBase64 = it.img;
             document.getElementById('modal').classList.remove('hidden');
         }
-
-        function resetDropZone() {
-            dropZoneContent.innerHTML = `
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-10 h-10 mb-2 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                <p class="font-medium">Foto hochladen für KI-Erkennung</p>
-                <p class="text-xs text-slate-400 mt-1">(LGB, Piko, USA Trains etc.)</p>
-            `;
+        function removeItem(i) { inventory.splice(i, 1); saveToLocal(); renderInventory(); }
+        function openLightbox(s) { document.getElementById('lightbox-img').src = s; document.getElementById('lightbox').style.display = 'flex'; }
+        function exportToCSV() { 
+            let c = "Brand;ID;Name;Price;ImagePath\n"; 
+            inventory.forEach(i => c += `${i.manufacturer};${i.manufacturerId};${i.name};${i.value};${i.imgPath}\n`);
+            const b = new Blob([c], {type:'text/csv'}); const a = document.createElement('a'); a.href=URL.createObjectURL(b); a.download='inventar.csv'; a.click();
         }
-
-        function closeModal() { document.getElementById('modal').classList.add('hidden'); aiLoader.style.display = 'none'; }
-        
-        function resetModal() {
-            currentImgBase64 = "";
-            resetDropZone();
-            ['m_brand', 'm_id', 'm_name', 'm_value'].forEach(id => document.getElementById(id).value = '');
-        }
-
-        function openLightbox(index) {
-            const item = inventory[index];
-            if(!item.img) return;
-            document.getElementById('lightbox-img').src = item.img;
-            document.getElementById('lightbox').style.display = 'flex';
-        }
-
-        function shareBuyerLink() {
-            const url = window.location.href.split('#')[0] + "#view";
-            document.execCommand('copy'); // Fallback für iFrame
-            navigator.clipboard.writeText(url).then(() => {
-                showToast("Link in Zwischenablage kopiert!");
-            });
-        }
-
-        function exportToCSV() {
-            let csv = "Hersteller;Modell;Typ;ID;Preis\n";
-            inventory.forEach(i => csv += `${i.manufacturer};${i.name};${i.type};${i.manufacturerId};${i.value}\n`);
-            const blob = new Blob(["\ufeff", csv], { type: 'text/csv' });
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
-            a.download = 'G-Spur_Sammlung.csv';
-            a.click();
-        }
-
-        window.onhashchange = () => {
-            if (window.location.hash === '#view') toggleBuyerMode(true);
-            else toggleBuyerMode(false);
-        };
-
-        window.onload = () => {
-            if (window.location.hash === '#view') toggleBuyerMode(true);
-            else renderInventory();
-        };
+        window.onload = renderInventory;
     </script>
 </body>
 </html>
